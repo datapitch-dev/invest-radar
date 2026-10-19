@@ -280,6 +280,24 @@ class Pipeline(unittest.TestCase):
         self.assertEqual(len(first), 1 + 4)                               # makro + 4 instrumenty
         self.assertEqual([k for k, _ in calls if k in ("news", "macro")], [])   # drugi skan z cache
 
+    def test_verification_cached_so_signals_do_not_flap(self):
+        # model odpowiada raz "confirm", raz "reject" - przy tych samych danych werdykt ma być stały
+        verdicts = iter(["confirm", "reject"] * 50)
+
+        class Flaky(ClaudeAnalyzer):
+            def _ask(self_inner, user, max_tokens=4000):
+                if "makro" in user:
+                    return {"risk_sentiment": 0.0, "sector_tilts": {}, "summary": "m"}
+                if "Zweryfikuj" in user:
+                    return {"verdict": next(verdicts), "objections": [], "summary": ""}
+                return {"sentiment": 0.3, "confidence": 0.8, "events": [], "summary": ""}
+
+        store, analyzer = Store(":memory:"), Flaky(client=FakeClient([]))
+        runs = [run_scan(self.cfg, FakePrices(), FakeNews(), analyzer, store)["signals"] for _ in range(3)]
+        actions = [[(s.symbol, s.horizon, s.action) for s in r] for r in runs]
+        self.assertEqual(actions[0], actions[1])
+        self.assertEqual(actions[1], actions[2])
+
     def test_ai_errors_reported_and_skipped_as_alert_baseline(self):
         class Broken(ClaudeAnalyzer):
             def _ask(self_inner, user, max_tokens=4000):

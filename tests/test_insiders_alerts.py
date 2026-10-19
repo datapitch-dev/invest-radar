@@ -78,6 +78,13 @@ class PolishHeadlines(unittest.TestCase):
         self.assertIsNone(classify_pl_headline("Spółka kupiła konkurenta"))              # brak kontekstu insiderskiego
         self.assertIsNone(classify_pl_headline("Prezes kupił i sprzedał akcje w jednym dniu"))  # niejednoznaczne
 
+    def test_buybacks_and_shareholders_are_not_insiders(self):
+        self.assertIsNone(classify_pl_headline("Zarząd spółki skupuje akcje własne"))
+        self.assertIsNone(classify_pl_headline("Prezes: spółka kupiła akcje własne w ramach skupu"))
+        self.assertIsNone(classify_pl_headline("Fundusz, akcjonariusz spółki, zwiększa udział do 10%"))
+        self.assertIsNone(classify_pl_headline("Akcjonariusz sprzedał pakiet akcji spółki"))
+        self.assertEqual(classify_pl_headline("Wiceprezes zarządu nabył akcje spółki"), "P")
+
     def test_fetch_uses_news_and_dedupes(self):
         class N:
             def search(self, q, max_items=15):

@@ -91,7 +91,7 @@ class SecEdgarInsiders:
         cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
         events, used = [], 0
         for form, date, acc, doc in zip(rec["form"], rec["filingDate"], rec["accessionNumber"],
-                                        rec["primaryDocument"]):
+                                        rec["primaryDocument"], strict=True):
             if form != "4" or date < cutoff:
                 continue
             if used >= self.max_filings:
@@ -109,15 +109,18 @@ class SecEdgarInsiders:
 
 
 # ------------------------------------------------------- GPW (przybliżone, newsy)
-_ROLE = re.compile(r"prezes|członek zarządu|członka zarządu|zarząd|rady nadzorczej|insider|art\.? ?19|\bMAR\b|"
-                   r"osob[aył] zarządzając|akcjonariusz|wiceprezes", re.I)
+# Tylko osoby zarządzające i nadzorujące (art. 19 MAR). Celowo bez gołego "zarząd" (łapało "Zarząd skupuje akcje
+# własne") i bez "akcjonariusz" (fundusz zwiększający udział nie jest insiderem).
+_ROLE = re.compile(r"prezes|członek zarządu|członka zarządu|członkini zarządu|rady nadzorczej|insider|"
+                   r"art\.? ?19|\bMAR\b|osob[aył] zarządzając|wiceprezes", re.I)
+_BUYBACK = re.compile(r"akcj\w* własn|skup\w* akcji własn|buyback", re.I)   # skup przez spółkę, nie przez osobę
 _BUY = re.compile(r"kupi[łl]|kupuje|kupił[ai]|zakup akcji|nabył|nabycie akcji|dokupi|zwiększa udział|skupuje", re.I)
 _SELL = re.compile(r"sprzeda[łl]|sprzedaje|sprzedaż akcji|zbył|zbycie akcji|redukuje udział", re.I)
 
 
 def classify_pl_headline(title: str) -> str | None:
     """'P' (zakup), 'S' (sprzedaż) albo None. Wymaga kontekstu insiderskiego w nagłówku."""
-    if not _ROLE.search(title):
+    if not _ROLE.search(title) or _BUYBACK.search(title):
         return None
     buy, sell = bool(_BUY.search(title)), bool(_SELL.search(title))
     if buy == sell:                    # oba albo żaden = niejednoznaczne

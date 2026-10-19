@@ -5,7 +5,7 @@ import hashlib
 import json
 import time
 from datetime import datetime
-from typing import Callable
+from collections.abc import Callable
 
 from .fundamentals import fundamental_score
 from .indicators import technical_score
@@ -25,7 +25,8 @@ def _cached_ai(store: Store, analyzer, kind: str, parts, fn):
     model = getattr(analyzer, "model", None)
     if model is None:                                  # NoAI - nic do cache'owania
         return fn()
-    digest = hashlib.sha256(json.dumps(parts, ensure_ascii=False, sort_keys=True).encode()).hexdigest()[:24]
+    raw = json.dumps(parts, ensure_ascii=False, sort_keys=True, default=str)
+    digest = hashlib.sha256(raw.encode()).hexdigest()[:24]
     key = f"ai:{kind}:{model}:{digest}"
     hit = store.get_json(key, AI_CACHE_TTL_HOURS)
     if hit is not None:
@@ -33,6 +34,18 @@ def _cached_ai(store: Store, analyzer, kind: str, parts, fn):
     res = fn()
     store.set_json(key, res)
     return res
+
+
+def _rounded(x, digits: int = 4):
+    """Zaokrągla liczby w payloadzie dla AI. Ceny po odczycie z cache (JSON) różnią się na dalekich miejscach
+    po przecinku; bez zaokrąglenia ten sam sygnał dawałby inny klucz cache i nowe zapytanie do modelu."""
+    if isinstance(x, float):
+        return round(x, digits) if x == x else None
+    if isinstance(x, dict):
+        return {k: _rounded(v, digits) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_rounded(v, digits) for v in x]
+    return x
 
 
 def news_component(analysis: dict | None, sector_tilt: float | None, macro_weight: float = 0.25):
@@ -65,7 +78,7 @@ def run_scan(cfg: dict, prices, news, analyzer, store: Store,
     watch = cfg["watchlist"]
     sectors = sorted({w.get("sector") for w in watch if w.get("sector")})
     say = progress or (lambda f, m: None)
-    prev_run = store.latest_run()
+    prev_run = store.latest_run(without_ai_errors=True)   # ten sam punkt odniesienia co alerty w scan.py
     prev = {(s["symbol"], s["horizon"]): s for s in prev_run["signals"]} if prev_run else {}
     ai_errors: list[str] = []      # błędy wywołań AI - dashboard i CLI pokazują je wyraźnie
 
@@ -75,8 +88,8 @@ def run_scan(cfg: dict, prices, news, analyzer, store: Store,
     for q in cfg.get("macro_queries", []):
         try:
             macro_items += [i.to_dict() for i in news.search(q, max_items=10)]
-        except Exception:
-            pass
+        except Exception:      # pojedyncze zapytanie makro może paść - reszta wystarczy
+            continue
     seen, uniq = set(), []
     for i in sorted(macro_items, key=lambda x: x["published"], reverse=True):
         if i["title"].lower()[:80] not in seen:
@@ -158,8 +171,12 @@ def run_scan(cfg: dict, prices, news, analyzer, store: Store,
                            "tilt_sektora": tilt, "nastroje_rynku": macro.get("risk_sentiment"),
                            "insiderzy": {k: insider[k] for k in ("score", "buyers", "sellers", "approximate")}
                            if insider else None}
+                payload = _rounded(payload)
                 try:
-                    verification = analyzer.verify(meta, hz, payload) or None
+                    # cache jak przy newsach: ten sam sygnał i te same dane -> ten sam werdykt, więc
+                    # niedeterministyczna odpowiedź nie przełącza KUP/TRZYMAJ (i nie wysyła alertu) co skan
+                    verification = _cached_ai(store, analyzer, "verify", [sym, hz, payload],
+                                              lambda: analyzer.verify(meta, hz, payload)) or None
                 except Exception as e:
                     verification = None
                     errors.append(f"weryfikacja AI: {e}")
