@@ -74,3 +74,13 @@ class Store:
             "SELECT r.ts, s.action, s.score, s.confidence FROM signals s JOIN runs r ON r.id=s.run_id "
             "WHERE s.symbol=? AND s.horizon=? ORDER BY r.id DESC LIMIT ?",
             (symbol, horizon, limit)).fetchall()
+
+    def signal_rows(self) -> list[dict]:
+        """Wszystkie zapisane sygnały z czasem skanu i ceną - wejście do oceny historii (radar.backtest)."""
+        out = []
+        for ts, payload in self.db.execute(
+                "SELECT r.ts, s.payload FROM signals s JOIN runs r ON r.id=s.run_id ORDER BY r.id"):
+            s = json.loads(payload)
+            out.append({"ts": ts, "symbol": s["symbol"], "horizon": s["horizon"], "action": s["action"],
+                        "price": s.get("price")})
+        return out
