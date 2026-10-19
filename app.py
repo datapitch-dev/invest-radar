@@ -1,5 +1,4 @@
-"""Dashboard: streamlit run app.py"""
-import time
+"""Dashboard: streamlit run app.py   (tryb demo: streamlit run app.py -- --demo)"""
 from datetime import datetime
 
 import pandas as pd
@@ -7,20 +6,33 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from radar.pipeline import run_scan
-from radar.runtime import (load_config, load_env, make_analyzer, make_insiders, make_providers,
-                           make_store)
+from radar.runtime import is_demo, load_config, load_env, make_analyzer, make_insiders, make_providers, make_store
 from radar.signals import ACTION_PL, HORIZON_PL
 
 st.set_page_config(page_title="Invest Radar", page_icon="📡", layout="wide")
 load_env()
-cfg = load_config()
-store = make_store()
+DEMO = is_demo()
+cfg = load_config(demo=DEMO)
+store = make_store(DEMO)
 
 COLORS = {"BUY": "#1a9850", "ACCUMULATE": "#91cf60", "HOLD": "#9e9e9e", "REDUCE": "#fc8d59", "AVOID": "#d73027"}
 
 st.title("📡 Invest Radar")
 st.caption("Osobiste narzędzie do selekcji pomysłów inwestycyjnych. To NIE jest porada inwestycyjna - "
            "sygnały generuje model na podstawie niepełnych, darmowych danych. Decyzje podejmujesz sam.")
+if DEMO:
+    st.info("**Tryb demo:** fikcyjne instrumenty i syntetyczne notowania, sentyment ze słownika zamiast AI. "
+            "Nic tu nie opisuje prawdziwych spółek.")
+
+
+def scan(use_ai: bool, verify: bool, progress=None) -> None:
+    analyzer = make_analyzer(use_ai, demo=DEMO)
+    if use_ai and not DEMO and analyzer.__class__.__name__ == "NoAI":
+        st.warning("Brak ANTHROPIC_API_KEY - liczę bez AI.")
+    prices, news = make_providers(cfg, demo=DEMO)
+    run_scan(cfg, prices, news, analyzer, store, progress=progress, verify=verify and use_ai,
+             insiders=make_insiders(cfg, news, store, demo=DEMO))
+
 
 # ---------------- sidebar ----------------
 with st.sidebar:
@@ -30,21 +42,17 @@ with st.sidebar:
     sel_markets = st.multiselect("Rynki", markets, default=markets)
     min_conf = st.slider("Min. pewność", 0, 100, 0, step=5, format="%d%%") / 100
     st.divider()
-    use_ai = st.toggle("Użyj AI (Claude)", value=True,
+    use_ai = st.toggle("Użyj AI (Claude)", value=not DEMO, disabled=DEMO,
                        help="Wymaga ANTHROPIC_API_KEY w pliku .env. Bez AI: tylko technika + fundamenty.")
-    verify = st.toggle("Weryfikacja AI sygnałów", value=True, disabled=not use_ai)
-    if st.button("🔄 Odśwież dane i sygnały", type="primary", use_container_width=True):
-        analyzer = make_analyzer(use_ai)
-        if use_ai and analyzer.__class__.__name__ == "NoAI":
-            st.warning("Brak ANTHROPIC_API_KEY - liczę bez AI.")
+    verify = st.toggle("Weryfikacja AI sygnałów", value=not DEMO, disabled=DEMO or not use_ai)
+    if st.button("🔄 Odśwież dane i sygnały", type="primary", width="stretch"):
         bar = st.progress(0.0, text="Start...")
-        prices, news = make_providers(cfg)
-        run_scan(cfg, prices, news, analyzer, store,
-                 progress=lambda f, m: bar.progress(min(f, 1.0), text=m), verify=verify and use_ai,
-                 insiders=make_insiders(cfg, news, store))
+        scan(use_ai, verify, progress=lambda f, m: bar.progress(min(f, 1.0), text=m))
         bar.empty()
         st.rerun()
 
+if DEMO and store.latest_run() is None:
+    scan(use_ai=False, verify=False)        # demo liczy się w sekundę i offline - od razu jest co pokazać
 run = store.latest_run()
 if not run:
     st.info("Brak danych. Kliknij **Odśwież dane i sygnały** w panelu bocznym (pierwszy skan trwa kilka minut).")
@@ -75,7 +83,7 @@ with st.expander("🌍 Kontekst makro i geopolityka", expanded=True):
                                    marker_color=["#d73027" if v < 0 else "#1a9850" for v in tdf["Wpływ"]]))
             fig.update_layout(height=280, margin=dict(l=0, r=0, t=20, b=0), xaxis_range=[-1, 1],
                               title="Tilt sektorów z newsów")
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
 # ---------------- tabela sygnałów ----------------
 sigs = [s for s in run["signals"] if s["horizon"] == horizon and s["market"] in sel_markets
@@ -104,7 +112,7 @@ st.dataframe(
     table.style.map(color_signal, subset=["Sygnał"]).format(
         {"Score": "{:+.2f}", "Technika": "{:+.2f}", "Fundamenty": "{:+.2f}", "Newsy/makro": "{:+.2f}",
          "Insiderzy": "{:+.2f}", "Cena": "{:.2f}", "Pewność": "{:.0f}%"}, na_rep="-"),
-    use_container_width=True, hide_index=True)
+    width="stretch", hide_index=True)
 
 # ---------------- szczegóły ----------------
 st.subheader("Szczegóły instrumentu")
@@ -122,7 +130,7 @@ with left:
         if len(c) >= 200:
             fig.add_trace(go.Scatter(x=px.index, y=c.rolling(200).mean(), name="SMA200", line=dict(dash="dash")))
         fig.update_layout(height=380, margin=dict(l=0, r=0, t=10, b=0), legend=dict(orientation="h"))
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     else:
         st.info("Brak zapisanych notowań.")
 with right:
@@ -133,7 +141,7 @@ with right:
         fig = go.Figure(go.Bar(x=list(comp.values()), y=list(comp), orientation="h",
                                marker_color=["#d73027" if v < 0 else "#1a9850" for v in comp.values()]))
         fig.update_layout(height=170, margin=dict(l=0, r=0, t=0, b=0), xaxis_range=[-1, 1])
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
     st.write(s["rationale"])
     v = s.get("verification") or {}
     if v:

@@ -4,8 +4,8 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from datetime import datetime
 from collections.abc import Callable
+from datetime import datetime
 
 from .fundamentals import fundamental_score
 from .indicators import technical_score
@@ -19,19 +19,19 @@ def _clip(x, lo=-1.0, hi=1.0):
     return max(lo, min(hi, x))
 
 
-def _cached_ai(store: Store, analyzer, kind: str, parts, fn):
+def _cached_ai(store: Store, analyzer, kind: str, parts, fn, *args):
     """Te same nagłówki -> ten sam wynik AI. Bez cache każde odświeżenie pytałoby model ponownie,
     a niedeterministyczna odpowiedź potrafi przełączyć sygnał (i wysłać alert) bez nowej informacji."""
     model = getattr(analyzer, "model", None)
     if model is None:                                  # NoAI - nic do cache'owania
-        return fn()
+        return fn(*args)
     raw = json.dumps(parts, ensure_ascii=False, sort_keys=True, default=str)
     digest = hashlib.sha256(raw.encode()).hexdigest()[:24]
     key = f"ai:{kind}:{model}:{digest}"
     hit = store.get_json(key, AI_CACHE_TTL_HOURS)
     if hit is not None:
         return hit
-    res = fn()
+    res = fn(*args)
     store.set_json(key, res)
     return res
 
@@ -98,7 +98,7 @@ def run_scan(cfg: dict, prices, news, analyzer, store: Store,
     titles = [i["title"] for i in uniq]
     try:
         macro = _cached_ai(store, analyzer, "macro", [titles, sectors],
-                           lambda: analyzer.analyze_macro(titles, sectors))
+                           analyzer.analyze_macro, titles, sectors)
     except Exception as e:
         macro = {"risk_sentiment": 0.0, "sector_tilts": {}, "summary": f"Błąd analizy makro: {e}"}
         ai_errors.append(f"makro: {e}")
@@ -142,7 +142,7 @@ def run_scan(cfg: dict, prices, news, analyzer, store: Store,
         try:
             analysis = _cached_ai(store, analyzer, "news",
                                   [sym, meta.get("name"), meta.get("sector"), meta.get("market"), headlines],
-                                  lambda: analyzer.analyze_news(meta, headlines))
+                                  analyzer.analyze_news, meta, headlines)
         except Exception as e:
             analysis = None
             errors.append(f"AI newsy: {e}")
@@ -176,7 +176,7 @@ def run_scan(cfg: dict, prices, news, analyzer, store: Store,
                     # cache jak przy newsach: ten sam sygnał i te same dane -> ten sam werdykt, więc
                     # niedeterministyczna odpowiedź nie przełącza KUP/TRZYMAJ (i nie wysyła alertu) co skan
                     verification = _cached_ai(store, analyzer, "verify", [sym, hz, payload],
-                                              lambda: analyzer.verify(meta, hz, payload)) or None
+                                              analyzer.verify, meta, hz, payload) or None
                 except Exception as e:
                     verification = None
                     errors.append(f"weryfikacja AI: {e}")

@@ -2,6 +2,7 @@
 import json
 import time
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -126,14 +127,7 @@ class FakeMessages:
 
     def create(self, **kw):
         self.calls.append(kw)
-        text = self.replies.pop(0)
-
-        class B: pass
-        b = B(); b.text = text
-
-        class R: pass
-        r = R(); r.content = [b]
-        return r
+        return SimpleNamespace(content=[SimpleNamespace(text=self.replies.pop(0))])
 
 
 class FakeClient:
@@ -228,7 +222,8 @@ class Pipeline(unittest.TestCase):
         self.assertAlmostEqual(back["Close"].iloc[-1], df["Close"].iloc[-1], places=6)
 
     def test_full_scan_with_fake_claude_and_verification_downgrade(self):
-        replies = ['{"risk_sentiment": -0.3, "sector_tilts": {"Tech": 0.5, "Energy": -0.5, "Global": 0.0}, "summary": "m"}']
+        replies = ['{"risk_sentiment": -0.3, "sector_tilts": {"Tech": 0.5, "Energy": -0.5, "Global": 0.0}, '
+                   '"summary": "m"}']
         c = FakeClient([])
 
         class Scripted(ClaudeAnalyzer):

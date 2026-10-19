@@ -1,4 +1,4 @@
-"""CLI: python scan.py [--no-ai] [--no-verify] [--no-insiders] [--notify]
+"""CLI: python scan.py [--no-ai] [--no-verify] [--no-insiders] [--notify] [--demo]
 
 Robi pełny skan, drukuje tabelę sygnałów i (z --notify) wysyła alert o ZMIANACH względem poprzedniego skanu.
 Kod wyjścia: 0 = OK, 1 = nie udało się wysłać alertu, 2 = błędy wywołań AI (alerty wtedy pomijane).
@@ -9,8 +9,7 @@ import sys
 
 from radar.alerts import diff_signals, format_message, notify
 from radar.pipeline import run_scan
-from radar.runtime import (load_config, load_env, make_analyzer, make_insiders, make_providers,
-                           make_store)
+from radar.runtime import is_demo, load_config, load_env, make_analyzer, make_insiders, make_providers, make_store
 from radar.signals import ACTION_PL
 
 
@@ -20,15 +19,21 @@ def main() -> int:
     ap.add_argument("--no-verify", action="store_true", help="pomiń drugi przebieg weryfikacji AI")
     ap.add_argument("--no-insiders", action="store_true", help="pomiń transakcje insiderów")
     ap.add_argument("--notify", action="store_true", help="wyślij alert o zmianach sygnałów (Telegram/e-mail)")
+    ap.add_argument("--demo", action="store_true", help="dane syntetyczne, bez internetu i bez klucza API")
     args = ap.parse_args()
 
     load_env()
-    cfg = load_config()
-    store = make_store()
+    demo = args.demo or is_demo()
+    if demo and args.notify:
+        ap.error("--notify nie działa w trybie demo (dane są syntetyczne)")
+    cfg = load_config(demo=demo)
+    store = make_store(demo)
+    if demo:
+        print("TRYB DEMO: fikcyjne instrumenty i syntetyczne dane, bez internetu i bez AI.\n")
     prev = store.latest_run(without_ai_errors=True)  # PRZED skanem, który zapisze nowy; skany z błędami AI pomijamy
-    prices, news = make_providers(cfg)
-    insiders = None if args.no_insiders else make_insiders(cfg, news, store)
-    res = run_scan(cfg, prices, news, make_analyzer(use_ai=not args.no_ai), store,
+    prices, news = make_providers(cfg, demo)
+    insiders = None if args.no_insiders else make_insiders(cfg, news, store, demo)
+    res = run_scan(cfg, prices, news, make_analyzer(use_ai=not args.no_ai, demo=demo), store,
                    progress=lambda f, m: print(f"[{f:4.0%}] {m}"), verify=not args.no_verify,
                    insiders=insiders)
 
@@ -59,7 +64,8 @@ def main() -> int:
         else:
             try:
                 sent = notify(format_message(changes, res["macro"].get("summary", "")))
-                print(f"\nAlerty: {len(changes)} zmian, wysłano: {', '.join(sent) or 'żaden kanał nie jest skonfigurowany (.env)'}")
+                channels = ", ".join(sent) or "żaden kanał nie jest skonfigurowany (.env)"
+                print(f"\nAlerty: {len(changes)} zmian, wysłano: {channels}")
             except Exception as e:
                 print(f"\nAlerty: NIE wysłano - {e}", file=sys.stderr)
                 return 1

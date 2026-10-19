@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "invest-radar"
+version = "1.0.0"
+description = "Osobisty skaner pomysłów inwestycyjnych: technika, fundamenty, newsy oceniane przez AI, insiderzy, alerty."
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "datapitch-dev" }]
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40,<2",
+    "feedparser>=6.0,<7",
+    "numpy>=1.26,<3",
+    "pandas>=2.2,<3",
+    "plotly>=5.24,<8",
+    "python-dotenv>=1.0,<2",
+    "pyyaml>=6.0,<7",
+    "requests>=2.31,<3",
+    "streamlit>=1.50,<2",
+    "yfinance>=0.2.50,<2",
+]
+
+[project.optional-dependencies]
+dev = ["ruff>=0.6"]
+
+[tool.setuptools]
+packages = ["radar"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

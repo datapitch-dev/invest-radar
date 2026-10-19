@@ -2,10 +2,9 @@
 import time
 import unittest
 
-from radar.alerts import diff_signals, format_message, notify
 from radar.ai import NoAI
-from radar.insiders import (InsiderService, PolishInsiderNews, classify_pl_headline, parse_form4,
-                            summarize)
+from radar.alerts import diff_signals, format_message, notify
+from radar.insiders import InsiderService, PolishInsiderNews, classify_pl_headline, parse_form4, summarize
 from radar.pipeline import run_scan
 from radar.signals import Signal, apply_insider, build_signal
 from radar.storage import Store
@@ -130,7 +129,8 @@ class Service(unittest.TestCase):
         svc = InsiderService(sec=Sec(), pl=None)
         store = Store(":memory:")
         meta = {"symbol": "AAPL", "name": "Apple", "kind": "stock", "market": "USA"}
-        r1, r2 = svc.analyze(meta, store), svc.analyze(meta, store)
+        r1 = svc.analyze(meta, store)
+        svc.analyze(meta, store)
         self.assertEqual(r1["buyers"], 1)
         self.assertEqual(Sec.calls, 1)                     # drugie z cache
         self.assertIsNone(svc.analyze({**meta, "kind": "etf"}, store))
@@ -201,8 +201,12 @@ class Alerts(unittest.TestCase):
 
     def test_notify_channels_and_failures(self):
         calls = []
-        tg = lambda t, tok, cid: calls.append(("tg", tok, cid))
-        mail = lambda t, h, p, u, pw, to: calls.append(("mail", h, p, to))
+        def tg(t, tok, cid):
+            calls.append(("tg", tok, cid))
+
+        def mail(t, h, p, u, pw, to):
+            calls.append(("mail", h, p, to))
+
         env = {"TELEGRAM_BOT_TOKEN": "T", "TELEGRAM_CHAT_ID": "1", "SMTP_HOST": "h", "SMTP_USER": "u",
                "SMTP_PASSWORD": "p", "EMAIL_TO": "me@x"}
         self.assertEqual(notify("hi", env, tg, mail), ["telegram", "email"])
