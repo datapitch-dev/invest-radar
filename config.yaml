@@ -1,0 +1,56 @@
+# Konfiguracja Invest Radar. Edytuj watchlistę pod swoje konta (Erste, XTB / IKE).
+# Symbole w formacie Yahoo Finance: GPW = .WA, Frankfurt = .DE, Amsterdam = .AS, Londyn = .L
+# UWAGA: sprawdź w swoim brokerze, czy dany instrument jest dostępny (zwłaszcza ETF-y pod IKE).
+
+settings:
+  horizons: [long, medium]     # long = lata (IKE), medium = tygodnie-miesiące
+  cache_ttl_hours: 6           # jak długo trzymać pobrane dane
+  min_confidence: 0.30         # poniżej tego sygnał spada do TRZYMAJ
+  hysteresis: 0.05             # sygnał z poprzedniego skanu zostaje, dopóki score/pewność nie wyjdą o tyle poza próg
+  insiders: true               # transakcje insiderów (USA: SEC Form 4 - wymaga SEC_USER_AGENT; GPW: przybliżone z newsów)
+  insider_days: 90             # okno analizy transakcji
+  insider_weight: 0.15         # siła nakładki insiderów na score (dane przybliżone ważą o połowę mniej)
+
+# Alerty po skanie z flagą --notify (kanały w .env: Telegram i/lub e-mail)
+alerts:
+  min_confidence: 0.40         # nowy sygnał do działania musi mieć co najmniej taką pewność
+  alert_on_first_run: false    # pierwszy skan nie wysyła alertów (nie ma z czym porównać)
+
+# Wagi składowych per horyzont (technika / fundamenty / newsy+makro). Usuń sekcję, by użyć domyślnych.
+weights:
+  long:   {tech: 0.25, fund: 0.45, news: 0.30}
+  medium: {tech: 0.40, fund: 0.20, news: 0.40}
+
+# Zapytania do Google News dla kontekstu makro i geopolityki
+macro_queries:
+  - "geopolityka rynki finansowe"
+  - "inflacja stopy procentowe NBP Fed EBC"
+  - "giełda GPW WIG20"
+  - "Wall Street S&P 500"
+  - "ceny ropy gazu surowce"
+  - "cła wojna handlowa gospodarka"
+  - "global markets stocks outlook"
+
+watchlist:
+  # --- GPW ---
+  - {symbol: PKN.WA, name: PKN Orlen,   kind: stock, market: GPW, sector: Energy,     query: "PKN Orlen"}
+  - {symbol: PKO.WA, name: PKO BP,      kind: stock, market: GPW, sector: Financials, query: "PKO BP bank"}
+  - {symbol: PEO.WA, name: Bank Pekao,  kind: stock, market: GPW, sector: Financials, query: "Bank Pekao"}
+  - {symbol: PZU.WA, name: PZU,         kind: stock, market: GPW, sector: Financials, query: "PZU ubezpieczenia"}
+  - {symbol: KGH.WA, name: KGHM,        kind: stock, market: GPW, sector: Materials,  query: "KGHM miedź"}
+  - {symbol: CDR.WA, name: CD Projekt,  kind: stock, market: GPW, sector: Technology, query: "CD Projekt"}
+  - {symbol: DNP.WA, name: Dino Polska, kind: stock, market: GPW, sector: Consumer,   query: "Dino Polska"}
+  - {symbol: LPP.WA, name: LPP,         kind: stock, market: GPW, sector: Consumer,   query: "LPP odzież"}
+  # --- USA ---
+  - {symbol: AAPL, name: Apple,     kind: stock, market: USA, sector: Technology, query: "Apple stock"}
+  - {symbol: MSFT, name: Microsoft, kind: stock, market: USA, sector: Technology, query: "Microsoft stock"}
+  - {symbol: NVDA, name: NVIDIA,    kind: stock, market: USA, sector: Technology, query: "NVIDIA stock"}
+  - {symbol: JPM,  name: JPMorgan,  kind: stock, market: USA, sector: Financials, query: "JPMorgan stock"}
+  - {symbol: XOM,  name: Exxon Mobil, kind: stock, market: USA, sector: Energy,   query: "Exxon Mobil stock"}
+  # --- Europa ---
+  - {symbol: ASML.AS, name: ASML, kind: stock, market: Europa, sector: Technology, query: "ASML"}
+  - {symbol: SAP.DE,  name: SAP,  kind: stock, market: Europa, sector: Technology, query: "SAP stock"}
+  # --- ETF (przykładowe UCITS; zweryfikuj dostępność i tickery u brokera) ---
+  - {symbol: VWCE.DE, name: Vanguard FTSE All-World, kind: etf, market: ETF, sector: Global,   query: "global stocks ETF world"}
+  - {symbol: SXR8.DE, name: iShares Core S&P 500,    kind: etf, market: ETF, sector: Global,   query: "S&P 500 ETF"}
+  - {symbol: EUNL.DE, name: iShares MSCI World,      kind: etf, market: ETF, sector: Global,   query: "MSCI World ETF"}
