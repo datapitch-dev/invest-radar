@@ -29,6 +29,16 @@ _TEMPLATES = (
 )
 
 
+_MACRO = (
+    "Bank centralny pozostawia stopy procentowe bez zmian",
+    "Inflacja spada trzeci miesiąc z rzędu",
+    "Ceny ropy rosną po decyzji producentów o ograniczeniu wydobycia",
+    "Europejskie indeksy kończą tydzień na plusie",
+    "Napięcia handlowe: nowe cła na import stali",
+    "Rentowności obligacji w dół po słabszych danych z rynku pracy",
+)
+
+
 def _rng(key: str) -> np.random.Generator:
     return np.random.default_rng(zlib.crc32(key.encode()))
 
@@ -61,11 +71,18 @@ class DemoPrices:
 class DemoNews:
     """Ten sam interfejs co GoogleNewsProvider: .search(query, max_items)."""
 
+    def __init__(self, macro_queries: list[str] | None = None):
+        self.macro_queries = set(macro_queries or [])
+
     def search(self, query: str, max_items: int = 15, lang: str | None = None,
                country: str | None = None) -> list[NewsItem]:
         rng = _rng("news:" + query)
-        picks = rng.choice(len(_TEMPLATES), size=3, replace=False)
         now = time.time()
+        if query in self.macro_queries:
+            picks = rng.choice(len(_MACRO), size=3, replace=False)
+            return [NewsItem(_MACRO[i], "https://example.com/demo", "Demo", now - (k + 1) * 2 * 3600)
+                    for k, i in enumerate(picks)][:max_items]
+        picks = rng.choice(len(_TEMPLATES), size=3, replace=False)
         return [NewsItem(_TEMPLATES[i][0].format(q=query), "https://example.com/demo", "Demo",
                          now - (k + 1) * 3 * 3600) for k, i in enumerate(sorted(picks))][:max_items]
 

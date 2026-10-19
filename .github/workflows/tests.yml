@@ -1,0 +1,24 @@
+name: testy
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r requirements.txt ruff
+      - run: ruff check .
+      - run: python -m unittest discover -s tests -t . -v
+      - name: Skan i backtest w trybie demo (bez internetu i klucza API)
+        run: |
+          python scan.py --demo
+          python backtest.py technika --demo

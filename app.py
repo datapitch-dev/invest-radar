@@ -101,6 +101,10 @@ table = pd.DataFrame([{
     "Insiderzy": (s.get("insider") or {}).get("score") if (s.get("insider") or {}).get("n_events") else None,
     "Cena": s["price"], "Uwagi": len(s["risks"]) + len(s["errors"]),
 } for s in sigs])
+numeric = ["Technika", "Fundamenty", "Newsy/makro", "Insiderzy", "Cena"]
+table[numeric] = table[numeric].apply(pd.to_numeric, errors="coerce")
+if table["Insiderzy"].isna().all():         # brak danych o insiderach (ETF-y, Europa, demo) - kolumna nic nie mówi
+    table = table.drop(columns="Insiderzy")
 
 
 def color_signal(v):
@@ -111,8 +115,9 @@ def color_signal(v):
 st.dataframe(
     table.style.map(color_signal, subset=["Sygnał"]).format(
         {"Score": "{:+.2f}", "Technika": "{:+.2f}", "Fundamenty": "{:+.2f}", "Newsy/makro": "{:+.2f}",
-         "Insiderzy": "{:+.2f}", "Cena": "{:.2f}", "Pewność": "{:.0f}%"}, na_rep="-"),
-    width="stretch", hide_index=True)
+         "Cena": "{:.2f}", "Pewność": "{:.0f}%"} | ({"Insiderzy": "{:+.2f}"} if "Insiderzy" in table else {}),
+        na_rep="-"),
+    width="stretch", hide_index=True, height=35 * (len(table) + 1) + 3)     # cała tabela bez przewijania
 
 # ---------------- szczegóły ----------------
 st.subheader("Szczegóły instrumentu")

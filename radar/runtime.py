@@ -51,7 +51,7 @@ def make_analyzer(use_ai: bool = True, demo: bool = False):
 def make_providers(cfg: dict, demo: bool = False):
     if demo:
         from .demo import DemoNews, DemoPrices
-        return DemoPrices(), DemoNews()
+        return DemoPrices(), DemoNews(cfg.get("macro_queries"))
     max_age = cfg.get("settings", {}).get("news_max_age_days", 7)
     return YahooProvider(), GoogleNewsProvider(max_age_days=max_age)
 
