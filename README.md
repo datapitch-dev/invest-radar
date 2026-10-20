@@ -1,6 +1,6 @@
 # Invest Radar
 
-![testy](../../actions/workflows/tests.yml/badge.svg)
+[![testy](https://github.com/datapitch-dev/invest-radar/actions/workflows/tests.yml/badge.svg)](https://github.com/datapitch-dev/invest-radar/actions/workflows/tests.yml)
 
 Osobisty skaner pomysłów inwestycyjnych. Pobiera notowania, fundamenty, newsy i transakcje insiderów dla
 własnej watchlisty (GPW, USA, Europa, ETF-y), ocenia newsy i kontekst makro przez Claude API i składa z tego
